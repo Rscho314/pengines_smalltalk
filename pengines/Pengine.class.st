@@ -24,7 +24,8 @@ Pengine class >> copyOptionsFrom: anOrigin [
 { #category : #'instance creation' }
 Pengine class >> fillDefaultOptions: someOptions [
 	"fillDefaultOptions"
-	"scope: class-variables  &  class-instance-variables"		
+	"scope: class-variables  &  class-instance-variables"
+	"API: https://pengines.swi-prolog.org/docs/documentation.html"		
 	
 		defaultOptions := IdentityDictionary new.
 		defaultOptions 	add: #format      -> 'json';
@@ -48,7 +49,7 @@ Pengine >> initializePengine: someOptions [
 	"scope: class-variables  &  instance-variables"	
 	| validOptions tempOptions |
 	tempOptions := someOptions.
-	validOptions := IdentityDictionary new.
+	validOptions := Dictionary new.
 	[ defaultOptions keysDo: [ :k | ( tempOptions includesKey: k )
 			ifTrue: [ validOptions add: k -> ( tempOptions at: k ) ]
 			ifFalse: [ validOptions add: k -> ( defaultOptions at: k ) ] ] ]
@@ -58,12 +59,22 @@ Pengine >> initializePengine: someOptions [
 	( options at: #id )
 		ifNotNil: [ id:= options at: #id.
 									"self pull_response." ]
-		ifNil: [	 Transcript show: (ZnClient new
-										beOneShot;
-										url: ( 'http://localhost:3030', (options at: #server), '/create' );
-										entity: (ZnEntity 
-									        			with: ( STON toString: ( ( options reject: [:v | v isNil] ) asDictionary ) )
-        												type: ZnMimeType applicationJson);
-										method: #POST;
-										curl)].
+		ifNil: [ ZnClient new 
+								http;
+								host: 'localhost';
+								port: 3030;
+								addPath: 'pengine';
+								addPath: 'create';
+								enforceHttpSuccess: true;
+								accept: ZnMimeType applicationJson;
+								contentWriter: [ :object | 
+        ZnEntity 
+            with: (String streamContents: [ :stream |
+                        STON jsonWriter on: stream; nextPut: object ])
+            type: ZnMimeType applicationJson ];
+			contentReader: [ :entity | Transcript cr; show: entity contents ];
+    "contentReader: [ :entity |
+        STON fromString: entity contents ];"
+contents: ( options reject: [ :v | v isNil ] );
+post ].
 ]
