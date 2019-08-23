@@ -1,5 +1,5 @@
 "
-I am a bridge to SWI-Prolog.
+I am an abstract class bridge to SWI-Prolog.
 
 I communicate with the SWI-Prolog pengines server (https://pengines.swi-prolog.org/docs/index.html) through HTTP, by allowing to write prolog code directly within the Pharo source code. I know how to communicate with the server through callbacks, similar to the existing Javascript API (https://github.com/SWI-Prolog/packages-pengines/blob/master/web/js/pengines.js).
 
@@ -19,10 +19,17 @@ Class {
 		'id',
 		'onResponse',
 		'pingId',
-		'src'
+		'src',
+		'aborted',
+		'detached',
+		'died'
 	],
 	#classVars : [
-		'DefaultOptions'
+		'DecToUnicode',
+		'DefaultOptions',
+		'Serialize',
+		'SerializeKey',
+		'StringEscape'
 	],
 	#category : #pengines
 }
@@ -42,31 +49,34 @@ Pengine class >> withOptions: someOptions [
 	"scope: class-variables  &  class-instance-variables"
 	"API: https://pengines.swi-prolog.org/docs/documentation.html"		
 	
-		DefaultOptions := IdentityDictionary new.
-		DefaultOptions 	add: #format      -> 'json';
-											add: #ask         -> nil;
-											add: #destroy     -> true;
-											add: #chunk       -> 1;	
-											add: #application -> 'pengine_sandbox';
-											add: #onCreate    -> nil;
-											add: #onSuccess   -> nil;
-											add: #onData      -> nil;
-											add: #onFailure   -> nil;
-											add: #onError     -> nil;
-											add: #onPrompt    -> nil;
-											add: #onOutput    -> nil;
-											add: #onDebug     -> nil;
-											add: #onPing      -> nil;
-											add: #onAbort     -> nil;
-											add: #onDetach    -> nil;
-											add: #onDestroy   -> nil;
+	DefaultOptions := IdentityDictionary new.
+	DefaultOptions 	add: #format      -> 'json';
+										add: #ask         -> nil;
+										add: #destroy     -> true;
+										add: #chunk       -> 1;	
+										add: #application -> 'pengine_sandbox';
+										add: #onCreate    -> nil;
+										add: #onSuccess   -> nil;
+										add: #onData      -> nil;
+										add: #onFailure   -> nil;
+										add: #onError     -> nil;
+										add: #onPrompt    -> nil;
+										add: #onOutput    -> nil;
+										add: #onDebug     -> nil;
+										add: #onPing      -> nil;
+										add: #onAbort     -> nil;
+										add: #onDetach    -> nil;
+										add: #onDestroy   -> nil;
 											"should those exist?"
-											add: #server      -> 'pengine';
-											add: #id          -> nil;
-											add: #src_text    -> nil;
-											add: #template    -> nil;
-											add: #solutions   -> nil.
-	 ^self new
+										add: #server      -> 'pengine';
+										add: #id          -> nil;
+										add: #src_text    -> nil;
+										add: #template    -> nil;
+										add: #solutions   -> nil.
+	Serialize := nil.
+	StringEscape := nil.
+	DecToUnicode := nil.
+	^self new
 			initializePengine: someOptions;
 			yourself
 ]
@@ -107,6 +117,8 @@ Pengine >> ask: aQuery options: someOptions [
 Pengine >> callback: aFunction withArgument: anArgument [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
+	
+	self flag: 'are callbacks really needed with an abstract class?'.
 			
 	( options includes: aFunction )
 		ifTrue: [ ^self perform: aFunction asSymbol withArguments: ( Array with: anArgument ) ]
@@ -118,7 +130,7 @@ Pengine >> destroy [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
-"	died ifFalse: [ died := true ]."
+	died ifFalse: [ died := true ].
 	^self send: 'destroy'
 ]
 
@@ -153,7 +165,9 @@ Pengine >> detach: someData [
 Pengine >> initializePengine: someOptions [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
+	
 	| validOptions response |
+	
 	alive := Set new.
 	validOptions := Dictionary new.
 	[ DefaultOptions keysDo: [ :k | ( someOptions includesKey: k )
@@ -182,8 +196,7 @@ Pengine >> initializePengine: someOptions [
 								contents: ( options reject: [ :v | v isNil ] );
 								post.
 						response isSuccess
-							ifTrue: 
-								"[ Transcript cr; show: ( STON toStringPretty: response contents ); cr; flush ]"
+							ifTrue:
 								[ self processResponse: response contents ]
 							ifFalse:
 								[ self error: 'POST request with value ', ( options asString ), ' failed.' ] ]
@@ -196,8 +209,16 @@ Pengine >> next: aNext [
 	"scope: class-variables  &  instance-variables"
 
 	aNext
-		ifNil: [ ^ self send: 'next' ]
-		ifNotNil: [ ^ self send: 'next(' , aNext , ')' ]
+		ifNil: [ ^self send: 'next' ]
+		ifNotNil: [ ^self send: 'next(' , aNext , ')' ]
+]
+
+{ #category : #callbacks }
+Pengine >> onAbort: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
 ]
 
 { #category : #callbacks }
@@ -205,15 +226,81 @@ Pengine >> onCreate: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
-	Transcript cr; show: 'oncreate event!'; cr.
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onDebug: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onDestroy: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onDetach: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onError: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onFailure: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onOutput: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onPing: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onPrompt: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
 ]
 
 { #category : #'event processing' }
 Pengine >> onResponse: anEvent [
 	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
+	"scope: class-variables  &  instance-variables"
 	
 	| response |
+	
+	self flag: 'refactor as shorter & less indirections'.
 			
 	response := IdentityDictionary new.
 	response
@@ -230,9 +317,71 @@ Pengine >> onResponse: anEvent [
 								ifFalse: [ self callback: ( options at: #onCreate ) withArgument: o.
 															(o includesKey: #answer)
 																ifTrue: [ ^self processResponse: (o at: #answer) ] ] ];
-		add: #stop -> nil.
-		
-	^response at: anEvent asSymbol "TODO: #success and other events not yet implemented"
+		add: #stop -> [ :o | self callback: ( options at: #onStop ) withArgument: o ];
+		add: #failure -> [ :o | self callback: ( options at: #onFailure ) withArgument: o ];
+		add: #prompt -> [ :o | self callback: ( options at: #onPrompt ) withArgument: o ];
+		add: #success -> [ :o | ( ( self callback: ( options at: #onSuccess ) withArgument: o )
+																	and: [ options includesKey: #onData ] )
+																	ifTrue:
+																		[ ( o at: #data)
+																			do: [ :d | self perform: ( options at: #onData ) withArguments: d ] ].
+																( o at: #more) ifNotNil: [ o at: #pengine next "this block probably wrong" ] ];
+		add: #error -> [ :o | ( ( o at: #code == 'existence error' )
+																	and: [ [ o at: #arg1 == 'pengine' ]
+																	and: [ o at: #arg2  == id ] ] )
+																		ifTrue: [ self unregisterPengine ].
+															( ( self callback: ( options at: #onError ) withArgument: o ) == 'not implemented' )
+																ifTrue:
+																	[ ^self error: ( o at: #data ) asString ] ];
+		add: #output -> [ :o | id ifNil: [ id := ( o at: #id ) ].
+																self callback: ( options at: #onOutput ) withArgument: o;
+																			pullResponse ];
+		add: #ping -> [ :o | self callback: ( options at: #onPing ) withArgument: o ];
+		add: #debug -> [ :o | ( ( self callback: ( options at: #onDebug ) withArgument: o ) == 'not implemented' )
+															ifTrue: [ ^self error: ( o at: #data ) asString ] ];
+		add: #abort -> [ :o | aborted := true.
+															self callback: ( options at: #onAbort ) withArgument: o ];
+		add: #detached -> [ :o | detached := true.
+																	self unregisterPengine..
+																	self callback: ( options at: #onDetach ) withArgument: o ];
+		add: #destroy -> [ :o | self unregisterPengine.
+																	( o at: #data ) ifNotNil: [ self processResponse: ( o at: #data ) ].
+																	self callback: ( options at: #onDestroy ) withArgument: o ];
+		add: #died -> [ :o | self unregisterPengine.
+															aborted ifFalse: [ o at: #data put: 'Pengine has died';
+																												at: #code put: 'died'.
+																										( self callback: ( options at: #onError ) withArgument: o )
+																											ifFalse: [ ^self error: ( o at: #data ) asString ] ] ].
+^response at: anEvent asSymbol
+]
+
+{ #category : #callbacks }
+Pengine >> onStop: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onSuccess: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #private }
+Pengine >> optionsToList: someOptions [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	| opts |
+	
+	opts := '['.
+	options keysAndValuesDo: [ :k :v | ( opts ~~'[' ) ifTrue: [opts := opts, ','].
+																						v ifNotNil: [ opts := k, '(', v, ')' ] ].
+	^opts, ']'
 ]
 
 { #category : #communication }
@@ -279,7 +428,7 @@ Pengine >> processResponse: aResponse [
 	obj := aResponse isString
 		ifTrue: [ STON fromString: aResponse ]
 		ifFalse: [ aResponse ].
-	^(self onResponse: ( obj at: #event ) asSymbol ) value: obj.
+	^( self onResponse: ( obj at: #event ) asSymbol ) value: obj.
 ]
 
 { #category : #'event processing' }
@@ -359,4 +508,89 @@ Pengine >> stop [
 	"scope: class-variables  &  instance-variables"	
 			
 	^self send: 'stop'
+]
+
+{ #category : #private }
+Pengine >> stringifyData: someData withOptions: someOptions [
+	"comment stating purpose of instance-side message"
+
+	"scope: class-variables  &  instance-variables"
+
+	| msg |
+	self flag: 'Improve by adding asPrologString methods to the tested classes (SmallTalk way)'.
+	
+	( someData isNumber ) ifTrue: [ ^someData asNumber  ]	.
+	( someData isString ) ifTrue: 
+		[ ( ( someOptions at: #string ) == 'atom' )
+				ifTrue: [ ^'''', someData, '''' ] ifFalse: [ ^'"', someData, '"' ] ].
+	someData ifTrue: [ ^'''true''' ].
+	someData ifFalse: [ ^'''false''' ].
+	someData ifNil: [ ^'''null''' ].
+	( someData isArray ) ifTrue: [ msg:= '[' .
+																			 someData do: [ :e | msg := e asString, ',' ].
+																			 msg := msg asOrderedCollection removeLast asString.
+																			 ^msg, ']' ].
+	( someData isDictionary ) ifTrue: [  ].
+		
+	"Serialize := [ :data | 
+	StringEscape := [ :aString :aQuery | 
+	DecToUnicode := [ :aNumber | 
+	((0 to: 15) includes: aNumber)
+		ifTrue: [ ^ '\\u000' , (aNumber radix: 16) ].
+	((16 to: 255) includes: aNumber)
+		ifTrue: [ ^ '\\u00' , (aNumber radix: 16) ].
+	((256 to: 4095) includes: aNumber)
+		ifTrue: [ ^ '\\u0' , (aNumber radix: 16) ].
+	((4096 to: 65535) includes: aNumber)
+		ifTrue: [ ^ '\\u' , (aNumber radix: 16) ] ].
+	result := aQuery.
+	aString
+		do: [ :c | 
+			(c isAlphaNumeric or: c == ' ')
+				ifTrue: [ c == '\\'
+						ifTrue: [ result := result , '\\\\' ].
+					(c == aQuery)
+						ifTrue: [ result := result , '\\' , aQuery ];
+						ifFalse: [ result := result , c ] ]
+				ifFalse: [ c == '\n'
+						ifTrue: [ result := result , '\\n' ].
+					c == '\r'
+						ifTrue: [ result := result , '\\r' ].
+					c == '\t'
+						ifTrue: [ result := result , '\\t' ].
+					c == '\b'
+						ifTrue: [ result := result , '\\b' ].
+					(c == '\f')
+						ifTrue: [ result := result , '\\f' ];
+						ifFalse: [ result := result , self decToUnicode: c codePoint ] ] ].
+	^ result , aQuery ].
+	SerializeKey := [ :k | 
+	msg := (k matchesRegex: '/^\d+$/')
+		ifTrue: [ msg , k ]
+		ifFalse: [ msg , StringEscape value: k value: '''' ].
+	^ true ].
+	( ( data == true ) or: ( data == false ) )
+		ifTrue: [ msg := msg, 'true' ] ifFalse: [ msg := msg, 'false' ].
+	data ifNil: [ msg := msg, 'null' ].
+	( data isNumber ) ifTrue: [ msg := msg, data ].
+	( data isString ) ifTrue: [ msg := msg, StringEscape value: data value: strq ].
+	( data isArray )
+		ifTrue: [ msg := msg, '['.
+								data do: [ :e | ( Serialize value: e ) ifTrue: [ msg := msg, ', '] ].
+								msg := msg asOrderedCollection removeLast asString, ']' ].
+	( data isDictionary ) ifTrue: [ msg := msg, 'js{'.
+																				data keysAndValuesDo: [ :k :v | 
+																					( Serialize value: v )
+																						ifTrue: [ msg := msg, k asString, ':'  ] ] ]
+	]."
+]
+
+{ #category : #private }
+Pengine >> unregisterPengine [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	pingId := nil.
+	alive := alive remove: id. "does not handle id absence" 
+	detached ifFalse: [ died := true ].
 ]
