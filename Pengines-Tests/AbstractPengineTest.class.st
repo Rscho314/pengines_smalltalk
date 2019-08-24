@@ -1,10 +1,7 @@
 Class {
 	#name : #AbstractPengineTest,
 	#superclass : #TestCase,
-	#instVars : [
-		'pengine'
-	],
-	#category : #PenginesTests
+	#category : #'Pengines-Tests'
 }
 
 { #category : #running }

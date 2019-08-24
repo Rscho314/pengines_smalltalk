@@ -10,9 +10,7 @@ Class {
 	#superclass : #Object,
 	#instVars : [
 		'options',
-		'alive',
 		'id',
-		'onResponse',
 		'pingId',
 		'src',
 		'aborted',
@@ -26,7 +24,7 @@ Class {
 	#classInstVars : [
 		'options'
 	],
-	#category : #pengines
+	#category : #Pengines
 }
 
 { #category : #copying }
