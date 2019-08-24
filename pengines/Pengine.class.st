@@ -4,11 +4,6 @@ I am an abstract class bridge to SWI-Prolog.
 I communicate with the SWI-Prolog pengines server (https://pengines.swi-prolog.org/docs/index.html) through HTTP, by allowing to write prolog code directly within the Pharo source code. I know how to communicate with the server through callbacks, similar to the existing Javascript API (https://github.com/SWI-Prolog/packages-pengines/blob/master/web/js/pengines.js).
 
 My main collaborators are ZincHTTP and STON. I use their methods for HTTP and JSON operations.
-
-instance creation:
-
-myPengine := Pengine withOptions: {} asDictionary.
-, where '{ }' must define the required callbacks as values of keys in the 'options' class variable.
 "
 Class {
 	#name : #Pengine,
@@ -25,11 +20,8 @@ Class {
 		'died'
 	],
 	#classVars : [
-		'DecToUnicode',
-		'DefaultOptions',
-		'Serialize',
-		'SerializeKey',
-		'StringEscape'
+		'Alive',
+		'DefaultOptions'
 	],
 	#category : #pengines
 }
@@ -41,6 +33,44 @@ Pengine class >> copyOptionsFrom: anOrigin [
 	
 	^anOrigin copy.
 	
+]
+
+{ #category : #serialization }
+Pengine class >> stringifyData: someData withOptions: someOptions [
+	
+	| msg |
+
+	self
+		flag: 'Improve by adding asPrologString methods to the tested classes'.
+
+	someData isNumber
+		ifTrue: [ ^ someData asNumber ].
+	someData isString
+		ifTrue: [ (someOptions at: #string) == 'atom'
+				ifTrue: [ ^ '''' , someData , '''' ]
+				ifFalse: [ ^ '"' , someData , '"' ] ].
+	someData
+		ifTrue: [ ^ '''true''' ].
+	someData
+		ifFalse: [ ^ '''false''' ].
+	someData ifNil: [ ^ '''null''' ].
+	someData isArray
+		ifTrue: [ msg := String
+				streamContents: [ :s | 
+					someData
+						do: [ :each | 
+							s nextPutAll: each asString;
+								nextPutAll: ',' ] ].
+			msg at: msg size put: $].
+			^ '[' , msg ].
+	someData isDictionary
+		ifFalse: [ ^ self ].
+	msg := ''.
+	someData
+		keysAndValuesDo: [ :k :v | msg := msg , k asString , ':' , v asString , ',' ].
+	msg at: msg size put: $}.
+	msg := 'js{' , msg.
+	^ msg
 ]
 
 { #category : #'instance creation' }
@@ -73,9 +103,7 @@ Pengine class >> withOptions: someOptions [
 										add: #src_text    -> nil;
 										add: #template    -> nil;
 										add: #solutions   -> nil.
-	Serialize := nil.
-	StringEscape := nil.
-	DecToUnicode := nil.
+	Alive := Set new.
 	^self new
 			initializePengine: someOptions;
 			yourself
@@ -134,6 +162,32 @@ Pengine >> destroy [
 	^self send: 'destroy'
 ]
 
+{ #category : #'initialize-destroy' }
+Pengine >> destroyAll [
+	"comment stating purpose of class-side message"
+	"scope: class-variables  &  class-instance-variables"	
+
+	| url response |
+			
+	
+	Alive do:
+		[ :i | url := ZnUrl new 
+							scheme: #http;
+							host: 'localhost';
+							port: 3030;
+							addPathSegment: ( options at: #server );
+							addPathSegment: 'destroy_all';
+							queryAt: 'ids' put: i;
+							queryAt: 'format' add: ( options at: #format ).
+	
+						response := ZnClient new.
+						response
+							url: url;
+							post.
+	
+						response isSuccess ifFalse: [ ^self error: 'destroy_all POST failed.' ] ]
+]
+
 { #category : #communication }
 Pengine >> detach: someData [
 	"comment stating purpose of instance-side message"
@@ -168,17 +222,16 @@ Pengine >> initializePengine: someOptions [
 	
 	| validOptions response |
 	
-	alive := Set new.
 	validOptions := Dictionary new.
 	[ DefaultOptions keysDo: [ :k | ( someOptions includesKey: k )
 			ifTrue: [ validOptions add: k -> ( someOptions at: k ) ]
 			ifFalse: [ validOptions add: k -> ( DefaultOptions at: k ) ] ] ]
 	on: MessageNotUnderstood
-		do:[ self error: 'Pengine ''options'' argument must be addressable by key-value pairs.' ].
+		do:[ ^self error: 'Pengine ''options'' argument must be addressable by key-value pairs.' ].
 	options := validOptions.
 	( options at: #id )
 		ifNotNil: [ alive add: ( options at: #id ).
-									"self pull_response" ]
+									^self pullResponse ]
 		ifNil: [ response := ZnClient new.
 								response
 								http;
@@ -197,9 +250,9 @@ Pengine >> initializePengine: someOptions [
 								post.
 						response isSuccess
 							ifTrue:
-								[ self processResponse: response contents ]
+								[ ^self processResponse: response contents ]
 							ifFalse:
-								[ self error: 'POST request with value ', ( options asString ), ' failed.' ] ]
+								[ ^self error: 'POST request with value ', ( options asString ), ' failed.' ] ]
 ]
 
 { #category : #communication }
@@ -306,8 +359,8 @@ Pengine >> onResponse: anEvent [
 	response
 		add: #create ->
 			[ :o | id := o at: #id.
-							alive add: id.
-							( alive size > ( o at: #slave_limit ) )
+							Alive add: id.
+							( Alive size > ( o at: #slave_limit ) )
 								ifTrue: [ self destroy.
 														o
 															add: #data ->
@@ -342,7 +395,7 @@ Pengine >> onResponse: anEvent [
 		add: #abort -> [ :o | aborted := true.
 															self callback: ( options at: #onAbort ) withArgument: o ];
 		add: #detached -> [ :o | detached := true.
-																	self unregisterPengine..
+																	self unregisterPengine.
 																	self callback: ( options at: #onDetach ) withArgument: o ];
 		add: #destroy -> [ :o | self unregisterPengine.
 																	( o at: #data ) ifNotNil: [ self processResponse: ( o at: #data ) ].
@@ -511,86 +564,11 @@ Pengine >> stop [
 ]
 
 { #category : #private }
-Pengine >> stringifyData: someData withOptions: someOptions [
-	"comment stating purpose of instance-side message"
-
-	"scope: class-variables  &  instance-variables"
-
-	| msg |
-	self flag: 'Improve by adding asPrologString methods to the tested classes (SmallTalk way)'.
-	
-	( someData isNumber ) ifTrue: [ ^someData asNumber  ]	.
-	( someData isString ) ifTrue: 
-		[ ( ( someOptions at: #string ) == 'atom' )
-				ifTrue: [ ^'''', someData, '''' ] ifFalse: [ ^'"', someData, '"' ] ].
-	someData ifTrue: [ ^'''true''' ].
-	someData ifFalse: [ ^'''false''' ].
-	someData ifNil: [ ^'''null''' ].
-	( someData isArray ) ifTrue: [ msg:= '[' .
-																			 someData do: [ :e | msg := e asString, ',' ].
-																			 msg := msg asOrderedCollection removeLast asString.
-																			 ^msg, ']' ].
-	( someData isDictionary ) ifTrue: [  ].
-		
-	"Serialize := [ :data | 
-	StringEscape := [ :aString :aQuery | 
-	DecToUnicode := [ :aNumber | 
-	((0 to: 15) includes: aNumber)
-		ifTrue: [ ^ '\\u000' , (aNumber radix: 16) ].
-	((16 to: 255) includes: aNumber)
-		ifTrue: [ ^ '\\u00' , (aNumber radix: 16) ].
-	((256 to: 4095) includes: aNumber)
-		ifTrue: [ ^ '\\u0' , (aNumber radix: 16) ].
-	((4096 to: 65535) includes: aNumber)
-		ifTrue: [ ^ '\\u' , (aNumber radix: 16) ] ].
-	result := aQuery.
-	aString
-		do: [ :c | 
-			(c isAlphaNumeric or: c == ' ')
-				ifTrue: [ c == '\\'
-						ifTrue: [ result := result , '\\\\' ].
-					(c == aQuery)
-						ifTrue: [ result := result , '\\' , aQuery ];
-						ifFalse: [ result := result , c ] ]
-				ifFalse: [ c == '\n'
-						ifTrue: [ result := result , '\\n' ].
-					c == '\r'
-						ifTrue: [ result := result , '\\r' ].
-					c == '\t'
-						ifTrue: [ result := result , '\\t' ].
-					c == '\b'
-						ifTrue: [ result := result , '\\b' ].
-					(c == '\f')
-						ifTrue: [ result := result , '\\f' ];
-						ifFalse: [ result := result , self decToUnicode: c codePoint ] ] ].
-	^ result , aQuery ].
-	SerializeKey := [ :k | 
-	msg := (k matchesRegex: '/^\d+$/')
-		ifTrue: [ msg , k ]
-		ifFalse: [ msg , StringEscape value: k value: '''' ].
-	^ true ].
-	( ( data == true ) or: ( data == false ) )
-		ifTrue: [ msg := msg, 'true' ] ifFalse: [ msg := msg, 'false' ].
-	data ifNil: [ msg := msg, 'null' ].
-	( data isNumber ) ifTrue: [ msg := msg, data ].
-	( data isString ) ifTrue: [ msg := msg, StringEscape value: data value: strq ].
-	( data isArray )
-		ifTrue: [ msg := msg, '['.
-								data do: [ :e | ( Serialize value: e ) ifTrue: [ msg := msg, ', '] ].
-								msg := msg asOrderedCollection removeLast asString, ']' ].
-	( data isDictionary ) ifTrue: [ msg := msg, 'js{'.
-																				data keysAndValuesDo: [ :k :v | 
-																					( Serialize value: v )
-																						ifTrue: [ msg := msg, k asString, ':'  ] ] ]
-	]."
-]
-
-{ #category : #private }
 Pengine >> unregisterPengine [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
 	pingId := nil.
-	alive := alive remove: id. "does not handle id absence" 
+	Alive := Alive remove: id. "does not handle id absence" 
 	detached ifFalse: [ died := true ].
 ]
