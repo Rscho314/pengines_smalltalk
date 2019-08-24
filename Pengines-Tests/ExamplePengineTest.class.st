@@ -15,15 +15,6 @@ ExamplePengineTest >> setUp [
 ]
 
 { #category : #tests }
-ExamplePengineTest >> testDefaultInitialization [
-	"comment stating purpose of instance-side message"
-
-	"scope: class-variables  &  instance-variables"
-
-	ExamplePengine new.
-]
-
-{ #category : #tests }
 ExamplePengineTest >> testInitializationWithOptions [
 	"comment stating purpose of instance-side message"
 
