@@ -23,6 +23,9 @@ Class {
 		'Alive',
 		'DefaultOptions'
 	],
+	#classInstVars : [
+		'options'
+	],
 	#category : #pengines
 }
 
@@ -33,6 +36,18 @@ Pengine class >> copyOptionsFrom: anOrigin [
 	
 	^anOrigin copy.
 	
+]
+
+{ #category : #initialization }
+Pengine class >> initializeWithOptions: someOptions [
+	"comment stating purpose of class-side message"
+	"scope: class-variables  &  class-instance-variables"	
+	
+	someOptions isDictionary 
+		ifTrue:  [ options := someOptions ]
+		ifFalse: [ ^self error: 'options must be an instance of Dictionary' ].
+			
+	^self new
 ]
 
 { #category : #serialization }
@@ -71,42 +86,6 @@ Pengine class >> stringifyData: someData withOptions: someOptions [
 	msg at: msg size put: $}.
 	msg := 'js{' , msg.
 	^ msg
-]
-
-{ #category : #'instance creation' }
-Pengine class >> withOptions: someOptions [
-	"fillDefaultOptions"
-	"scope: class-variables  &  class-instance-variables"
-	"API: https://pengines.swi-prolog.org/docs/documentation.html"		
-	
-	DefaultOptions := IdentityDictionary new.
-	DefaultOptions 	add: #format      -> 'json';
-										add: #ask         -> nil;
-										add: #destroy     -> true;
-										add: #chunk       -> 1;	
-										add: #application -> 'pengine_sandbox';
-										add: #onCreate    -> nil;
-										add: #onSuccess   -> nil;
-										add: #onData      -> nil;
-										add: #onFailure   -> nil;
-										add: #onError     -> nil;
-										add: #onPrompt    -> nil;
-										add: #onOutput    -> nil;
-										add: #onDebug     -> nil;
-										add: #onPing      -> nil;
-										add: #onAbort     -> nil;
-										add: #onDetach    -> nil;
-										add: #onDestroy   -> nil;
-											"should those exist?"
-										add: #server      -> 'pengine';
-										add: #id          -> nil;
-										add: #src_text    -> nil;
-										add: #template    -> nil;
-										add: #solutions   -> nil.
-	Alive := Set new.
-	^self new
-			initializePengine: someOptions;
-			yourself
 ]
 
 { #category : #communication }
@@ -151,6 +130,35 @@ Pengine >> callback: aFunction withArgument: anArgument [
 	( options includes: aFunction )
 		ifTrue: [ ^self perform: aFunction asSymbol withArguments: ( Array with: anArgument ) ]
 		ifFalse: [ ^self error: 'method ''', aFunction, ''' not found' ]
+]
+
+{ #category : #communication }
+Pengine >> create [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+	
+	| response |
+			
+	response := ZnClient new.
+	response
+		http;
+		host: ( options at: #host );
+		port: ( options at: #port );
+		addPath: ( options at: #server );
+		addPath: 'create';
+		enforceAcceptContentType: true;
+		accept: ZnMimeType applicationJson;
+		contentWriter: [ :object | ZnEntity 
+            												with: (String streamContents: [ :stream |
+																					STON jsonWriter on: stream; nextPut: object ])
+            												type: ZnMimeType applicationJson ];
+   contentReader: [ :entity | STON fromStream: ( entity contents readStream ) ];
+																			contents: ( options reject: [ :v | v isNil ] );
+																			post.
+	response isSuccess
+							ifTrue: 		[ ^self processResponse: response contents ]
+							ifFalse: 	[ ^self error: 'POST request with value ',
+														( options asString ), ' failed.' ]
 ]
 
 { #category : #communication }
@@ -215,44 +223,30 @@ Pengine >> detach: someData [
 	response isSuccess ifFalse: [ ^self error: 'POST with data: ', ( someData asString ), ' failed.' ]
 ]
 
-{ #category : #'instance initalization' }
-Pengine >> initializePengine: someOptions [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
+{ #category : #initialization }
+Pengine >> initialize [
+
+	super initialize.
 	
-	| validOptions response |
+	DefaultOptions := Dictionary new.
+	DefaultOptions 
+		add: #host 					-> 'localhost';
+		add: #port 					-> 3030;
+		add: #format      	-> 'json';
+		add: #destroy     	-> true;
+		add: #chunk       	-> 1;	
+		add: #application 	-> 'pengine_sandbox';
+		add: #server      	-> 'pengine'.
+	Alive := Set new.
 	
-	validOptions := Dictionary new.
-	[ DefaultOptions keysDo: [ :k | ( someOptions includesKey: k )
-			ifTrue: [ validOptions add: k -> ( someOptions at: k ) ]
-			ifFalse: [ validOptions add: k -> ( DefaultOptions at: k ) ] ] ]
-	on: MessageNotUnderstood
-		do:[ ^self error: 'Pengine ''options'' argument must be addressable by key-value pairs.' ].
-	options := validOptions.
-	( options at: #id )
-		ifNotNil: [ alive add: ( options at: #id ).
-									^self pullResponse ]
-		ifNil: [ response := ZnClient new.
-								response
-								http;
-								host: 'localhost';
-								port: 3030;
-								addPath: ( options at: #server );
-								addPath: 'create';
-								enforceAcceptContentType: true;
-								accept: ZnMimeType applicationJson;
-								contentWriter: [ :object | 
-        					ZnEntity 
-            			with: (String streamContents: [ :stream | STON jsonWriter on: stream; nextPut: object ])
-            			type: ZnMimeType applicationJson ];
-    						contentReader: [ :entity | STON fromStream: ( entity contents readStream ) ];
-								contents: ( options reject: [ :v | v isNil ] );
-								post.
-						response isSuccess
-							ifTrue:
-								[ ^self processResponse: response contents ]
-							ifFalse:
-								[ ^self error: 'POST request with value ', ( options asString ), ' failed.' ] ]
+	options
+		ifNil: 		[ options := DefaultOptions copy ]
+		ifNotNil: [ DefaultOptions keysAndValuesDo: [ :k :v |
+									( options includes: k )
+										ifFalse: [ options add: k -> v ] ] ].
+	( options includes: #id )
+		ifTrue:  [ Alive add: ( options at: #id ). ^self pullResponse ]
+		ifFalse: [ ^self create ]	
 ]
 
 { #category : #communication }
@@ -367,7 +361,7 @@ Pengine >> onResponse: anEvent [
 																'Attempt to create too many pengines. The limit is: ', (o at: #slave_limit);
 															add: #code -> 'too many pengines'.
 														[ ^self error: (o at: #data) ] ]
-								ifFalse: [ self callback: ( options at: #onCreate ) withArgument: o.
+								ifFalse: [ self onCreate: o.
 															(o includesKey: #answer)
 																ifTrue: [ ^self processResponse: (o at: #answer) ] ] ];
 		add: #stop -> [ :o | self callback: ( options at: #onStop ) withArgument: o ];
