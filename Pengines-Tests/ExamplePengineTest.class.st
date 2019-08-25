@@ -15,6 +15,14 @@ ExamplePengineTest >> setUp [
 ]
 
 { #category : #tests }
+ExamplePengineTest >> testIdAssignment [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	self assert: ( pengine instVarNamed: #id ) notNil.
+]
+
+{ #category : #tests }
 ExamplePengineTest >> testInitializationWithOptions [
 	"comment stating purpose of instance-side message"
 

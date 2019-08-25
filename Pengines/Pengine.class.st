@@ -86,88 +86,6 @@ Pengine class >> stringifyData: someData withOptions: someOptions [
 	^ msg
 ]
 
-{ #category : #communication }
-Pengine >> abort [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-			
-	| url response |
-	
-	url := ZnUrl new
-						scheme: #http;
-						host: 'localhost';
-						port: 3030;
-						addPathSegment: ( options at: #server );
-						addPathSegment: 'abort';
-						queryAt: 'id' put: ( options at: #id );
-						queryAt: 'format' add: ( options at: #format ).
-	
-	response := ZnClient new.
-	response 
-		url: url;
-		get.
-	response isSuccess 
-		ifFalse: [ ^self error: 'pengine abortion failure' ]
-]
-
-{ #category : #communication }
-Pengine >> ask: aQuery options: someOptions [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-			
-	^self send: 'ask((', aQuery, '), ', ( someOptions values ), ')'
-]
-
-{ #category : #'dispatching-callback' }
-Pengine >> callback: aFunction withArgument: anArgument [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-	
-	self flag: 'are callbacks really needed with an abstract class?'.
-			
-	( options includes: aFunction )
-		ifTrue: [ ^self perform: aFunction asSymbol withArguments: ( Array with: anArgument ) ]
-		ifFalse: [ ^self error: 'method ''', aFunction, ''' not found' ]
-]
-
-{ #category : #communication }
-Pengine >> create [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-	
-	| response |
-			
-	response := ZnClient new.
-	response
-		http;
-		host: ( options at: #host );
-		port: ( options at: #port );
-		addPath: ( options at: #server );
-		addPath: 'create';
-		enforceAcceptContentType: true;
-		accept: ZnMimeType applicationJson;
-		contentWriter: [ :object | ZnEntity 
-            												with: (String streamContents: [ :stream |
-																					STON jsonWriter on: stream; nextPut: object ])
-            												type: ZnMimeType applicationJson ];
-   contentReader: [ :entity | STON fromStream: ( entity contents readStream ) ];
-																			contents: ( options reject: [ :v | v isNil ] );
-																			post.
-	response isSuccess
-							ifTrue: 		[ ^self processResponse: response contents ]
-							ifFalse: 	[ ^self error: 'POST request with value ',
-														( options asString ), ' failed.' ]
-]
-
-{ #category : #communication }
-Pengine >> destroy [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-			
-	died ifFalse: [ died := true ].
-	^self send: 'destroy'
-]
-
 { #category : #'initialize-destroy' }
 Pengine >> destroyAll [
 	"comment stating purpose of class-side message"
@@ -194,33 +112,6 @@ Pengine >> destroyAll [
 						response isSuccess ifFalse: [ ^self error: 'destroy_all POST failed.' ] ]
 ]
 
-{ #category : #communication }
-Pengine >> detach: someData [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-	
-	| url response |
-			
-	self ping: 0.
-	url := ZnUrl new 
-						scheme: #http;
-						host: 'localhost';
-						port: 3030;
-						addPathSegment: ( options at: #server );
-						addPathSegment: 'detach';
-						queryAt: 'id' put: ( options at: #id );
-						queryAt: 'format' add: ( options at: #format ).
-	
-	response := ZnClient new.
-	response
-		url: url;
-		contents: ( STON fromString: someData );
-		contentType: ZnMimeType applicationJson;
-		post.
-	
-	response isSuccess ifFalse: [ ^self error: 'POST with data: ', ( someData asString ), ' failed.' ]
-]
-
 { #category : #initialization }
 Pengine >> initialize [
 
@@ -244,18 +135,7 @@ Pengine >> initialize [
 										ifFalse: [ options add: k -> v ] ] ].
 	( options includes: #id )
 		ifTrue:  [ Alive add: ( options at: #id ). ^self pullResponse ]
-		ifFalse: [ ^self create ]	
-]
-
-{ #category : #communication }
-Pengine >> next: aNext [
-	"comment stating purpose of instance-side message"
-
-	"scope: class-variables  &  instance-variables"
-
-	aNext
-		ifNil: [ ^self send: 'next' ]
-		ifNotNil: [ ^self send: 'next(' , aNext , ')' ]
+		ifFalse: [ ^self sendCreate ]	
 ]
 
 { #category : #callbacks }
@@ -339,65 +219,28 @@ Pengine >> onPrompt: someData [
 ]
 
 { #category : #'event processing' }
-Pengine >> onResponse: anEvent [
+Pengine >> onResponse: anEvent withValue: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"
 	
 	| response |
-	
-	self flag: 'refactor as shorter & less indirections'.
 			
-	response := IdentityDictionary new.
+	response := Dictionary new.
 	response
-		add: #create ->
-			[ :o | id := o at: #id.
-							Alive add: id.
-							( Alive size > ( o at: #slave_limit ) )
-								ifTrue: [ self destroy.
-														o
-															add: #data ->
-																'Attempt to create too many pengines. The limit is: ', (o at: #slave_limit);
-															add: #code -> 'too many pengines'.
-														[ ^self error: (o at: #data) ] ]
-								ifFalse: [ self onCreate: o.
-															(o includesKey: #answer)
-																ifTrue: [ ^self processResponse: (o at: #answer) ] ] ];
-		add: #stop -> [ :o | self callback: ( options at: #onStop ) withArgument: o ];
-		add: #failure -> [ :o | self callback: ( options at: #onFailure ) withArgument: o ];
-		add: #prompt -> [ :o | self callback: ( options at: #onPrompt ) withArgument: o ];
-		add: #success -> [ :o | ( ( self callback: ( options at: #onSuccess ) withArgument: o )
-																	and: [ options includesKey: #onData ] )
-																	ifTrue:
-																		[ ( o at: #data)
-																			do: [ :d | self perform: ( options at: #onData ) withArguments: d ] ].
-																( o at: #more) ifNotNil: [ o at: #pengine next "this block probably wrong" ] ];
-		add: #error -> [ :o | ( ( o at: #code == 'existence error' )
-																	and: [ [ o at: #arg1 == 'pengine' ]
-																	and: [ o at: #arg2  == id ] ] )
-																		ifTrue: [ self unregisterPengine ].
-															( ( self callback: ( options at: #onError ) withArgument: o ) == 'not implemented' )
-																ifTrue:
-																	[ ^self error: ( o at: #data ) asString ] ];
-		add: #output -> [ :o | id ifNil: [ id := ( o at: #id ) ].
-																self callback: ( options at: #onOutput ) withArgument: o;
-																			pullResponse ];
-		add: #ping -> [ :o | self callback: ( options at: #onPing ) withArgument: o ];
-		add: #debug -> [ :o | ( ( self callback: ( options at: #onDebug ) withArgument: o ) == 'not implemented' )
-															ifTrue: [ ^self error: ( o at: #data ) asString ] ];
-		add: #abort -> [ :o | aborted := true.
-															self callback: ( options at: #onAbort ) withArgument: o ];
-		add: #detached -> [ :o | detached := true.
-																	self unregisterPengine.
-																	self callback: ( options at: #onDetach ) withArgument: o ];
-		add: #destroy -> [ :o | self unregisterPengine.
-																	( o at: #data ) ifNotNil: [ self processResponse: ( o at: #data ) ].
-																	self callback: ( options at: #onDestroy ) withArgument: o ];
-		add: #died -> [ :o | self unregisterPengine.
-															aborted ifFalse: [ o at: #data put: 'Pengine has died';
-																												at: #code put: 'died'.
-																										( self callback: ( options at: #onError ) withArgument: o )
-																											ifFalse: [ ^self error: ( o at: #data ) asString ] ] ].
-^response at: anEvent asSymbol
+		add: 'create' 		-> [ self receiveCreate: 			aResponse ];
+		add: 'stop' 			-> [ self receiveStop: 				aResponse ];
+		add: 'failure' 		-> [ self receiveFailure: 		aResponse	];
+		add: 'prompt' 		-> [ self receivePrompt: 			aResponse	];
+		add: 'success' 		-> [ self receiveSuccess: 		aResponse	];
+		add: 'error' 			-> [ self receiveError: 			aResponse	];
+		add: 'output' 		-> [ self receiveOutput: 			aResponse	];
+		add: 'ping' 			-> [ self receivePing: 				aResponse	];
+		add: 'debug' 			-> [ self receiveDebug: 			aResponse	];
+		add: 'abort' 			-> [ self receiveAbort: 			aResponse	];
+		add: 'detached' 	-> [ self receiveDetached: 	aResponse ];
+		add: 'destroy' 		-> [ self receiveDestroy: 		aResponse	];
+		add: 'died' 			-> [ self receiveDied: 				aResponse	].
+	^response at: anEvent
 ]
 
 { #category : #callbacks }
@@ -429,39 +272,6 @@ Pengine >> optionsToList: someOptions [
 	^opts, ']'
 ]
 
-{ #category : #communication }
-Pengine >> ping: anInterval [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-	
-	| url response |
-	
-	anInterval 
-		ifNil:
-			[ id ifNotNil:
-					[ url := ZnUrl new 
-											scheme: #http;
-											host: 'localhost';
-											port: 3030;
-											addPathSegment: ( options at: #server );
-											addPathSegment: 'ping';
-											queryAt: 'id' put: id;
-											queryAt: 'format' add: ( options at: #format ).
-						response := ZnClient new.
-						response
-							url: url;
-							get.
-						response isSuccess 
-							ifTrue: [ ^self processResponse: response contents ]
-							ifFalse: [ ^self error: 'Pinging the server failed' ] ] ]
-		ifNotNil:
-			[ ( anInterval > 0 )
-					ifTrue: [ pingId := [ [ true ] whileTrue: 
-																											[ ( Delay forSeconds: anInterval ) wait.
-																												^self ping: nil ] ] fork ]
-					ifFalse: [ pingId terminate ] ]
-]
-
 { #category : #'event processing' }
 Pengine >> processResponse: aResponse [
 	"comment stating purpose of instance-side message"
@@ -473,7 +283,7 @@ Pengine >> processResponse: aResponse [
 	obj := aResponse isString
 		ifTrue: [ STON fromString: aResponse ]
 		ifFalse: [ aResponse ].
-	^( self onResponse: ( obj at: #event ) asSymbol ) value: obj.
+	^( self onResponse: ( obj at: #event ) withValue: obj ) value.
 ]
 
 { #category : #'event processing' }
@@ -503,12 +313,140 @@ Pengine >> pullResponse [
 		ifFalse: [ ^self error: 'tried to pull response from dying pengine' ]
 ]
 
-{ #category : #communication }
-Pengine >> respond: anInput [
+{ #category : #receiving }
+Pengine >> receiveAbort: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
-	^self send: 'input((', anInput, '))' 
+	aborted := true.
+	^self onAbort: aResponse
+]
+
+{ #category : #receiving }
+Pengine >> receiveCreate: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	id := aResponse at: #id.
+	Alive add: id.
+	( Alive size > ( aResponse at: #slave_limit ) )
+		ifTrue: [ self sendDestroy.
+								aResponse
+									add: #data -> 'Attempt to create too many pengines. The limit is: ',
+																		(aResponse at: #slave_limit);
+									add: #code -> 'too many pengines'.
+								^self error: ( aResponse at: #data ) ]
+		ifFalse: [ 	self onCreate: aResponse.
+									(aResponse includesKey: #answer) ifTrue:
+										[ ^self processResponse: (aResponse at: #answer) ] ]
+]
+
+{ #category : #receiving }
+Pengine >> receiveDebug: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	( ( self onDebug: aResponse ) == 'not implemented' )
+		ifTrue: [ ^self error: ( aResponse at: #data ) asString ]
+]
+
+{ #category : #receiving }
+Pengine >> receiveDestroy: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	self unregisterPengine.
+	( aResponse at: #data ) ifNotNil: [ self processResponse: ( aResponse at: #data ) ].
+	^self onDestroy: aResponse
+]
+
+{ #category : #receiving }
+Pengine >> receiveDetached: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	detached := true.
+	self unregisterPengine.
+	^self onDetach: aResponse
+]
+
+{ #category : #receiving }
+Pengine >> receiveDied: aResponse [
+	self unregisterPengine.
+	aborted
+		ifTrue: [ ^ self ].
+	aResponse
+		at: #data put: 'Pengine has died';
+		at: #code put: 'died'.
+	(self onError: aResponse)
+		ifFalse: [ ^ self error: (aResponse at: #data) asString ]
+]
+
+{ #category : #receiving }
+Pengine >> receiveError: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	( 	( aResponse at: #code == 'existence error' )
+			and: [ [ aResponse at: #arg1 == 'pengine' ]
+			and: [ aResponse at: #arg2  == id ] ] )
+			ifTrue: [ self unregisterPengine ].
+			( ( self onError: aResponse ) == 'not implemented' )
+				ifTrue: [ ^self error: ( aResponse at: #data ) asString ]
+]
+
+{ #category : #receiving }
+Pengine >> receiveFailure: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self onFailure: aResponse
+]
+
+{ #category : #receiving }
+Pengine >> receiveOutput: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	id ifNil: [ id := ( aResponse at: #id ) ].
+	self onOutput: aResponse;
+				pullResponse
+]
+
+{ #category : #receiving }
+Pengine >> receivePing: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self onPing: aResponse
+]
+
+{ #category : #receiving }
+Pengine >> receivePrompt: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self onPrompt: aResponse
+]
+
+{ #category : #receiving }
+Pengine >> receiveStop: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self onStop: aResponse
+]
+
+{ #category : #receiving }
+Pengine >> receiveSuccess: aResponse [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	( ( self onSuccess: aResponse ) and: [ options includesKey: #onData ] )
+		ifTrue: [ ( aResponse at: #data)
+									do: [ :d | self perform: ( options at: #onData ) withArguments: d ] ].
+		( aResponse at: #more)
+			ifNotNil: [ aResponse at: #pengine next "this block probably wrong" ]
 ]
 
 { #category : #data }
@@ -519,7 +457,7 @@ Pengine >> scriptSources: source [
 	src := source.
 ]
 
-{ #category : #communication }
+{ #category : #sending }
 Pengine >> send: anEvent [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
@@ -544,11 +482,167 @@ Pengine >> send: anEvent [
 		ifTrue: 
 			[ ^self processResponse: response contents ]
 		ifFalse:
-			[ ^self error: 'Method failure: sendToPengine', response contents asString ]
+			[ ^self error: 'Method failure: ''send'' with response: ', response contents asString ]
 ]
 
-{ #category : #communication }
-Pengine >> stop [
+{ #category : #sending }
+Pengine >> sendAbort [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	| url response |
+	
+	url := ZnUrl new
+						scheme: #http;
+						host: 'localhost';
+						port: 3030;
+						addPathSegment: ( options at: #server );
+						addPathSegment: 'abort';
+						queryAt: 'id' put: ( options at: #id );
+						queryAt: 'format' add: ( options at: #format ).
+	
+	response := ZnClient new.
+	response 
+		url: url;
+		get.
+	response isSuccess 
+		ifFalse: [ ^self error: 'pengine abortion failure' ]
+]
+
+{ #category : #sending }
+Pengine >> sendAsk: aQuery withOptions: someOptions [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self send: 'ask((', aQuery, '), ', ( someOptions values ), ')'
+]
+
+{ #category : #sending }
+Pengine >> sendCreate [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+	
+	| response |
+			
+	response := ZnClient new.
+	response
+		http;
+		host: ( options at: #host );
+		port: ( options at: #port );
+		addPath: ( options at: #server );
+		addPath: 'create';
+		enforceAcceptContentType: true;
+		accept: ZnMimeType applicationJson;
+		contentWriter: [ :object | ZnEntity 
+            												with: (String streamContents: [ :stream |
+																					STON jsonWriter on: stream; nextPut: object ])
+            												type: ZnMimeType applicationJson ];
+   contentReader: [ :entity | STON fromStream: ( entity contents readStream ) ];
+																			contents: ( options reject: [ :v | v isNil ] );
+																			post.
+	response isSuccess
+							ifTrue: 		[ ^self processResponse: response contents ]
+							ifFalse: 	[ ^self error: 'POST request with value ',
+														( options asString ), ' failed.' ]
+]
+
+{ #category : #sending }
+Pengine >> sendDestroy [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	died ifFalse: [ died := true ].
+	^self send: 'destroy'
+]
+
+{ #category : #sending }
+Pengine >> sendDetach: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+	
+	| url response |
+			
+	self sendPing: 0.
+	url := ZnUrl new 
+						scheme: #http;
+						host: 'localhost';
+						port: 3030;
+						addPathSegment: ( options at: #server );
+						addPathSegment: 'detach';
+						queryAt: 'id' put: ( options at: #id );
+						queryAt: 'format' add: ( options at: #format ).
+	
+	response := ZnClient new.
+	response
+		url: url;
+		contents: ( STON fromString: someData );
+		contentType: ZnMimeType applicationJson;
+		post.
+	
+	response isSuccess ifFalse: [ ^self error: 'POST with data: ', ( someData asString ), ' failed.' ]
+]
+
+{ #category : #sending }
+Pengine >> sendNext [
+	"comment stating purpose of instance-side message"
+
+	"scope: class-variables  &  instance-variables"
+
+	^self send: 'next'
+]
+
+{ #category : #sending }
+Pengine >> sendNext: aNext [
+	"comment stating purpose of instance-side message"
+
+	"scope: class-variables  &  instance-variables"
+
+	^self send: 'next(' , aNext , ')'
+]
+
+{ #category : #sending }
+Pengine >> sendPing: anInterval [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+	
+	| url response |
+	
+	anInterval 
+		ifNil:
+			[ id ifNotNil:
+					[ url := ZnUrl new 
+											scheme: #http;
+											host: 'localhost';
+											port: 3030;
+											addPathSegment: ( options at: #server );
+											addPathSegment: 'ping';
+											queryAt: 'id' put: id;
+											queryAt: 'format' add: ( options at: #format ).
+						response := ZnClient new.
+						response
+							url: url;
+							get.
+						response isSuccess 
+							ifTrue: [ ^self processResponse: response contents ]
+							ifFalse: [ ^self error: 'Pinging the server failed' ] ] ]
+		ifNotNil:
+			[ ( anInterval > 0 )
+					ifTrue: [ pingId := [ [ true ] whileTrue: 
+																											[ ( Delay forSeconds: anInterval ) wait.
+																												^self sendPing: nil ] ] fork ]
+					ifFalse: [ pingId terminate ] ]
+]
+
+{ #category : #sending }
+Pengine >> sendResponse: anInput [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self send: 'input((', anInput, '))' 
+]
+
+{ #category : #sending }
+Pengine >> sendStop [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			

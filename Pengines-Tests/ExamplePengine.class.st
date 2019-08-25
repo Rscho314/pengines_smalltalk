@@ -1,3 +1,8 @@
+"
+I am an example concrete subclass of the Pengine abstract class.
+
+My only and essential collaborator is a running and reachable Pengines server instance for performing tests.
+"
 Class {
 	#name : #ExamplePengine,
 	#superclass : #Pengine,
