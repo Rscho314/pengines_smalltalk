@@ -9,17 +9,25 @@ Class {
 	#name : #Pengine,
 	#superclass : #Object,
 	#instVars : [
-		'options',
+		'server',
+		'application',
+		'ask',
+		'template',
+		'chunk',
+		'destroy',
+		'srctext',
+		'srcurl',
+		'format',
 		'id',
 		'pingId',
-		'src',
 		'aborted',
 		'detached',
-		'died'
+		'died',
+		'host',
+		'port'
 	],
 	#classVars : [
-		'Alive',
-		'DefaultOptions'
+		'Alive'
 	],
 	#classInstVars : [
 		'options'
@@ -36,16 +44,14 @@ Pengine class >> copyOptionsFrom: anOrigin [
 	
 ]
 
-{ #category : #initialization }
-Pengine class >> initializeWithOptions: someOptions [
-	"comment stating purpose of class-side message"
-	"scope: class-variables  &  class-instance-variables"	
-	
-	someOptions isDictionary 
-		ifTrue:  [ options := someOptions ]
-		ifFalse: [ ^self error: 'options must be an instance of Dictionary' ].
+{ #category : #'instance creation' }
+Pengine class >> new [
+	"Instance creation respecting Seaside guidelines:
+		https://github.com/SeasideSt/Seaside/wiki/Object-Initialization"
 			
-	^self new
+	^self basicNew
+					initialize;
+					yourself
 ]
 
 { #category : #serialization }
@@ -86,23 +92,86 @@ Pengine class >> stringifyData: someData withOptions: someOptions [
 	^ msg
 ]
 
-{ #category : #'initialize-destroy' }
+{ #category : #settings }
+Pengine >> application: anApplication [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	application := anApplication
+]
+
+{ #category : #settings }
+Pengine >> ask: anAsk [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	ask := anAsk
+]
+
+{ #category : #initialization }
+Pengine >> attach [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+	id ifNotNil: 		
+		[ Alive add: id.
+			^self pullResponse ]
+			ifNil: 
+		[ ^self error: 'tried to attach without providing a pengines instance ID' ]
+]
+
+{ #category : #initialization }
+Pengine >> attach: anId [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+	
+	id ifNil: 
+		[ id := anId.
+			Alive add: anId.
+			^self pullResponse ]
+			ifNotNil: 
+		[ ^self error: 'tried to attach a pengines instance with an already attached client' ]
+]
+
+{ #category : #settings }
+Pengine >> chunk: aChunk [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	chunk := aChunk
+]
+
+{ #category : #initialization }
+Pengine >> create [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+	
+	id ifNil: 
+				[ ^self sendCreate ]
+		 ifNotNil: 		
+				[ ^self error: 'attempted to create a pengines instance with an already attached client' ]
+]
+
+{ #category : #settings }
+Pengine >> destroy: aBool [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	destroy := aBool
+]
+
+{ #category : #cleanup }
 Pengine >> destroyAll [
 	"comment stating purpose of class-side message"
 	"scope: class-variables  &  class-instance-variables"	
 
 	| url response |
 			
-	
+	self flag: 'will kill all living pengines instances, including those of other clients. OK?'.
 	Alive do:
 		[ :i | url := ZnUrl new 
 							scheme: #http;
-							host: 'localhost';
-							port: 3030;
-							addPathSegment: ( options at: #server );
+							host: host;
+							port: port;
+							addPathSegment: server;
 							addPathSegment: 'destroy_all';
 							queryAt: 'ids' put: i;
-							queryAt: 'format' add: ( options at: #format ).
+							queryAt: 'format' add: format.
 	
 						response := ZnClient new.
 						response
@@ -112,30 +181,44 @@ Pengine >> destroyAll [
 						response isSuccess ifFalse: [ ^self error: 'destroy_all POST failed.' ] ]
 ]
 
+{ #category : #settings }
+Pengine >> format: aFormat [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	format := aFormat
+]
+
+{ #category : #API }
+Pengine >> id [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^id
+]
+
+{ #category : #settings }
+Pengine >> id: anId [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	id := anId
+]
+
 { #category : #initialization }
 Pengine >> initialize [
-
+	
 	super initialize.
 	
-	DefaultOptions := Dictionary new.
-	DefaultOptions 
-		add: #host 					-> 'localhost';
-		add: #port 					-> 3030;
-		add: #format      	-> 'json';
-		add: #destroy     	-> true;
-		add: #chunk       	-> 1;	
-		add: #application 	-> 'pengine_sandbox';
-		add: #server      	-> 'pengine'.
-	Alive := Set new.
+	"custom add-ons to the original API"
+	host := 'localhost'.
+	port := 3030.
 	
-	options
-		ifNil: 		[ options := DefaultOptions copy ]
-		ifNotNil: [ DefaultOptions keysAndValuesDo: [ :k :v |
-									( options includes: k )
-										ifFalse: [ options add: k -> v ] ] ].
-	( options includes: #id )
-		ifTrue:  [ Alive add: ( options at: #id ). ^self pullResponse ]
-		ifFalse: [ ^self sendCreate ]	
+	"original API"
+	server := 'pengine'.
+	application := 'pengine_sandbox'.
+	chunk := 1.
+	destroy := true.
+	format := 'json'.
+	Alive := Set new.
 ]
 
 { #category : #callbacks }
@@ -148,6 +231,14 @@ Pengine >> onAbort: someData [
 
 { #category : #callbacks }
 Pengine >> onCreate: someData [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"	
+			
+	^self subclassResponsibility
+]
+
+{ #category : #callbacks }
+Pengine >> onData: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -263,12 +354,13 @@ Pengine >> onSuccess: someData [
 Pengine >> optionsToList: someOptions [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
-			
-	| opts |
 	
+	| opts |
 	opts := '['.
-	options keysAndValuesDo: [ :k :v | ( opts ~~'[' ) ifTrue: [opts := opts, ','].
-																						v ifNotNil: [ opts := k, '(', v, ')' ] ].
+	someOptions ifNotNil: 
+		[ someOptions keysAndValuesDo:
+			[ :k :v | ( opts ~~'[' ) ifTrue: [opts := opts, ', '].
+									v ifNotNil: [ opts := opts, k asString , '(', v asString , ')' ] ] ].
 	^opts, ']'
 ]
 
@@ -295,12 +387,12 @@ Pengine >> pullResponse [
 	
 	url := ZnUrl new 
 						scheme: #http;
-						host: 'localhost';
-						port: 3030;
-						addPathSegment: ( options at: #server );
+						host: host;
+						port: port;
+						addPathSegment: server;
 						addPathSegment: 'pull_response';
 						queryAt: 'id' put: id;
-						queryAt: 'format' add: ( options at: #format ).
+						queryAt: 'format' add: format.
 						
 	response := ZnClient new.
 	response 
@@ -374,12 +466,12 @@ Pengine >> receiveDetached: aResponse [
 Pengine >> receiveDied: aResponse [
 	self unregisterPengine.
 	aborted
-		ifTrue: [ ^ self ].
+		ifTrue: [ ^self ].
 	aResponse
 		at: #data put: 'Pengine has died';
 		at: #code put: 'died'.
 	(self onError: aResponse)
-		ifFalse: [ ^ self error: (aResponse at: #data) asString ]
+		ifFalse: [ ^self error: (aResponse at: #data) asString ]
 ]
 
 { #category : #receiving }
@@ -442,19 +534,10 @@ Pengine >> receiveSuccess: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
-	( ( self onSuccess: aResponse ) and: [ options includesKey: #onData ] )
-		ifTrue: [ ( aResponse at: #data)
-									do: [ :d | self perform: ( options at: #onData ) withArguments: d ] ].
-		( aResponse at: #more)
-			ifNotNil: [ aResponse at: #pengine next "this block probably wrong" ]
-]
-
-{ #category : #data }
-Pengine >> scriptSources: source [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
-			
-	src := source.
+	( self onSuccess: aResponse )
+		ifTrue: [ ( aResponse at: #data ) do: [ :d | self onData: d ] ].
+	( aResponse at: #more)
+		ifNotNil: [ self sendNext ] "is this correct?? (pengines.js l.459)"
 ]
 
 { #category : #sending }
@@ -466,11 +549,11 @@ Pengine >> send: anEvent [
 	response := ZnClient new.
 	url := ZnUrl new 
 		scheme: #http;
-		host: 'localhost';
-		port: 3030;
-		addPathSegment: ( options at: #server );
+		host: host;
+		port: port;
+		addPathSegment: server;
 		addPathSegment: 'send';
-		queryAt: 'format' put: ( options at: #format );
+		queryAt: 'format' put: format;
 		queryAt: 'id' add: id;
 		yourself.
 	response
@@ -494,12 +577,12 @@ Pengine >> sendAbort [
 	
 	url := ZnUrl new
 						scheme: #http;
-						host: 'localhost';
-						port: 3030;
-						addPathSegment: ( options at: #server );
+						host: host;
+						port: port;
+						addPathSegment: server;
 						addPathSegment: 'abort';
-						queryAt: 'id' put: ( options at: #id );
-						queryAt: 'format' add: ( options at: #format ).
+						queryAt: 'id' put: id;
+						queryAt: 'format' add: format.
 	
 	response := ZnClient new.
 	response 
@@ -509,12 +592,12 @@ Pengine >> sendAbort [
 		ifFalse: [ ^self error: 'pengine abortion failure' ]
 ]
 
-{ #category : #sending }
+{ #category : #API }
 Pengine >> sendAsk: aQuery withOptions: someOptions [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
-	^self send: 'ask((', aQuery, '), ', ( someOptions values ), ')'
+	^self send: 'ask((', aQuery, '), ', ( self optionsToList: someOptions ), ').'
 ]
 
 { #category : #sending }
@@ -522,14 +605,23 @@ Pengine >> sendCreate [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
-	| response |
-			
+	| response options |
+	
+	options := { 	#server 				-> server.
+									#application 	-> application.
+									#ask 						-> ask.
+									#template 			-> template.
+									#chunk 				-> chunk.
+									#destroy 			-> destroy.
+									#srctext 			-> srctext.
+									#srcurl 				-> srcurl.
+									#format 				-> format. } asDictionary.
 	response := ZnClient new.
 	response
 		http;
-		host: ( options at: #host );
-		port: ( options at: #port );
-		addPath: ( options at: #server );
+		host: host;
+		port: port;
+		addPath: server;
 		addPath: 'create';
 		enforceAcceptContentType: true;
 		accept: ZnMimeType applicationJson;
@@ -565,12 +657,12 @@ Pengine >> sendDetach: someData [
 	self sendPing: 0.
 	url := ZnUrl new 
 						scheme: #http;
-						host: 'localhost';
-						port: 3030;
-						addPathSegment: ( options at: #server );
+						host: host;
+						port: port;
+						addPathSegment: server;
 						addPathSegment: 'detach';
-						queryAt: 'id' put: ( options at: #id );
-						queryAt: 'format' add: ( options at: #format ).
+						queryAt: 'id' put: id;
+						queryAt: 'format' add: format.
 	
 	response := ZnClient new.
 	response
@@ -612,12 +704,12 @@ Pengine >> sendPing: anInterval [
 			[ id ifNotNil:
 					[ url := ZnUrl new 
 											scheme: #http;
-											host: 'localhost';
-											port: 3030;
-											addPathSegment: ( options at: #server );
+											host: host;
+											port: port;
+											addPathSegment: server;
 											addPathSegment: 'ping';
 											queryAt: 'id' put: id;
-											queryAt: 'format' add: ( options at: #format ).
+											queryAt: 'format' add: format.
 						response := ZnClient new.
 						response
 							url: url;
@@ -649,6 +741,34 @@ Pengine >> sendStop [
 	^self send: 'stop'
 ]
 
+{ #category : #settings }
+Pengine >> server: aServer [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	server := aServer
+]
+
+{ #category : #settings }
+Pengine >> srctext: aSrc [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	srctext := aSrc
+]
+
+{ #category : #settings }
+Pengine >> srcurl: aUrl [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	srcurl := aUrl
+]
+
+{ #category : #settings }
+Pengine >> template: aTemplate [
+	"comment stating purpose of instance-side message"
+	"scope: class-variables  &  instance-variables"			
+	template := aTemplate
+]
+
 { #category : #private }
 Pengine >> unregisterPengine [
 	"comment stating purpose of instance-side message"
@@ -656,5 +776,5 @@ Pengine >> unregisterPengine [
 			
 	pingId := nil.
 	Alive := Alive remove: id. "does not handle id absence" 
-	detached ifFalse: [ died := true ].
+	detached ifFalse: [ died := true ]
 ]
