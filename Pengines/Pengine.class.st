@@ -136,7 +136,7 @@ Pengine >> ask: aQuery withOptions: someOptions [
 	Throws an error if the query is syntactically or semantically malformed or if running it could compromise the safety of the server.
 	someOptions is a dictionary contaning zero or more of 'template' or 'chunk' keys."
 			
-	^self send: 'ask((', aQuery, '), ', ( self optionsToList: someOptions ), ').'
+	^self send: 'ask((', aQuery, '), ', ( self optionsToList: someOptions ), ')'
 ]
 
 { #category : #initialization }
@@ -630,6 +630,7 @@ Pengine >> send: anEvent [
 	"scope: class-variables  &  instance-variables"	
 			
 	| response url |
+
 	response := ZnClient new.
 	url := ZnUrl new 
 		scheme: #http;
@@ -642,7 +643,7 @@ Pengine >> send: anEvent [
 		yourself.
 	response
 		url: url;
-		contents: anEvent, ' .\n';
+		contents: anEvent, '.', String cr;
 		contentType: 'application/x-prolog; charset=UTF-8';
 		post.
 	response isSuccess 
