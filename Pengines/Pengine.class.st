@@ -15,8 +15,8 @@ Class {
 		'template',
 		'chunk',
 		'destroy',
-		'srctext',
-		'srcurl',
+		'src_text',
+		'src_url',
 		'format',
 		'id',
 		'pingId',
@@ -478,7 +478,7 @@ Pengine >> pullResponse [
 		get.
 	
 	contents := STON fromStream: ( response contents readStream ).
-	( contents at: #event ~~ 'died' )
+	( ( contents at: #event ) ~= 'died' )
 		ifTrue: [ ^self processResponse: contents ]
 		ifFalse: [ ^self error: 'tried to pull response from dying pengine' ]
 ]
@@ -668,8 +668,8 @@ Pengine >> sendCreate [
 									#template 			-> template.
 									#chunk 				-> chunk.
 									#destroy 			-> destroy.
-									#srctext 			-> srctext.
-									#srcurl 				-> srcurl.
+									#src_text 			-> src_text.
+									#src_url 				-> src_url.
 									#format 				-> format. } asDictionary.
 	response := ZnClient new.
 	response
@@ -764,17 +764,17 @@ Pengine >> server: aServer [
 ]
 
 { #category : #settings }
-Pengine >> srctext: aSrc [
+Pengine >> src_text: aSrc [
 	"Prolog source code to be injected in the pengine before attempting to solve any queries."
 	
-	srctext := aSrc
+	src_text := aSrc
 ]
 
 { #category : #settings }
-Pengine >> srcurl: aUrl [
+Pengine >> src_url: aUrl [
 	"A URL resolving to a file containing Prolog source code to be injected in the pengine before attempting to solve any queries."
 
-	srcurl := aUrl
+	src_url := aUrl
 ]
 
 { #category : #API }
