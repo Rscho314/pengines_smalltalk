@@ -262,6 +262,8 @@ Pengine >> initialize [
 	port := 3030.
 	
 	"original API"
+	detached := true.
+	died := false.
 	server := 'pengine'.
 	application := 'pengine_sandbox'.
 	chunk := 1.
@@ -524,7 +526,7 @@ Pengine >> receiveDestroy: aResponse [
 	"scope: class-variables  &  instance-variables"	
 			
 	self unregisterPengine.
-	( aResponse at: #data ) ifNotNil: [ self processResponse: ( aResponse at: #data ) ].
+	( aResponse includes: #data ) ifTrue: [ self processResponse: ( aResponse at: #data ) ].
 	^self onDestroy: aResponse
 ]
 
@@ -686,7 +688,7 @@ Pengine >> sendCreate [
 																			contents: ( options reject: [ :v | v isNil ] );
 																			post.
 	response isSuccess
-							ifTrue: 		[ ^self processResponse: response contents ]
+							ifTrue: 		[ detached := false. ^self processResponse: response contents ]
 							ifFalse: 	[ ^self error: 'POST request with value ',
 														( options asString ), ' failed.' ]
 ]
