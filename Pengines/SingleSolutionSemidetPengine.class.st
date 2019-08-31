@@ -1,11 +1,11 @@
 Class {
-	#name : #SemidetPengine,
-	#superclass : #NondetPengine,
+	#name : #SingleSolutionSemidetPengine,
+	#superclass : #SingleSolutionNondetPengine,
 	#category : #Pengines
 }
 
 { #category : #API }
-SemidetPengine >> next [
+SingleSolutionSemidetPengine >> next [
 
 "A semidet predicate should succeed or fail only once, so we error out"
 
@@ -13,7 +13,7 @@ SemidetPengine >> next [
 ]
 
 { #category : #API }
-SemidetPengine >> next: aNext [
+SingleSolutionSemidetPengine >> next: aNext [
 
 "A semidet predicate should succeed or fail only once, so we error out"
 

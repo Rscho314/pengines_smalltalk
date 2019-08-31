@@ -1,24 +1,19 @@
-"
-I am an example concrete subclass of the Pengine abstract class.
-
-My only and essential collaborator is a running and reachable Pengines server instance for performing tests.
-"
 Class {
-	#name : #ExamplePengine,
-	#superclass : #NondetPengine,
+	#name : #MSNondetExample,
+	#superclass : #MultipleSolutionsNondetPengine,
 	#category : #'Pengines-Tests'
 }
 
 { #category : #callbacks }
-ExamplePengine >> onCreate: response [
-	"comment stating purpose of instance-side message"
-	"scope: class-variables  &  instance-variables"	
+MSNondetExample >> onCreate: someData [
+	"called when a pengine server instance has been created.
+	'id' should point to the id of the pengine."
 			
-	Transcript cr; show: 'CREATE: ', (response asString); flush.
+	Transcript cr; show: 'CREATE: ', (someData asString); flush.
 ]
 
 { #category : #callbacks }
-ExamplePengine >> onData: someData [
+MSNondetExample >> onData: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -26,7 +21,7 @@ ExamplePengine >> onData: someData [
 ]
 
 { #category : #callbacks }
-ExamplePengine >> onDestroy: someData [
+MSNondetExample >> onDestroy: someData [
 	"Called when the pengine has been successfully destroyed.
 	'id' should point to the id of the pengine having been destroyed."
 			
@@ -34,15 +29,15 @@ ExamplePengine >> onDestroy: someData [
 ]
 
 { #category : #callbacks }
-ExamplePengine >> onFailure: someData [
+MSNondetExample >> onFailure: someData [
 	"Called when the pengine fails to find a solution.
 	'id' should point to the id of the pengine reporting the failure."
 			
-	Transcript cr; show: someData; flush.
+	Transcript cr; show: 'FAILURE: ', (someData asString) ; flush.
 ]
 
 { #category : #callbacks }
-ExamplePengine >> onSuccess: someData [
+MSNondetExample >> onSuccess: someData [
 	"Called when the pengine responds with a successful answer to a query.
 	'data' should point to a list of objects each representing a solution to the query.
 	'more' should evaluate to a boolean indicating whether more solutions may exist.

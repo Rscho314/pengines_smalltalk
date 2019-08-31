@@ -1,6 +1,6 @@
 Class {
-	#name : #MultiPengine,
-	#superclass : #NondetPengine,
+	#name : #SingleSolutionMultiPengine,
+	#superclass : #SingleSolutionNondetPengine,
 	#instVars : [
 		'successFlag'
 	],
@@ -8,14 +8,14 @@ Class {
 }
 
 { #category : #initialization }
-MultiPengine >> initialize [
+SingleSolutionMultiPengine >> initialize [
 	super initialize.
 	
 	successFlag := false
 ]
 
 { #category : #callbacks }
-MultiPengine >> onFailure: someData [
+SingleSolutionMultiPengine >> onFailure: someData [
 	"Multi predicates must succeed at least once"
 	
 	successFlag
@@ -23,7 +23,7 @@ MultiPengine >> onFailure: someData [
 ]
 
 { #category : #callbacks }
-MultiPengine >> onSuccess: someData [
+SingleSolutionMultiPengine >> onSuccess: someData [
 	"First success is flagged, to allow failure for subsequent responses"
 	
 	successFlag ifFalse: [ successFlag := true	].
