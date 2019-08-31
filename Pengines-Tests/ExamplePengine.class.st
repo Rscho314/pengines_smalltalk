@@ -5,7 +5,7 @@ My only and essential collaborator is a running and reachable Pengines server in
 "
 Class {
 	#name : #ExamplePengine,
-	#superclass : #Pengine,
+	#superclass : #NondetPengine,
 	#category : #'Pengines-Tests'
 }
 

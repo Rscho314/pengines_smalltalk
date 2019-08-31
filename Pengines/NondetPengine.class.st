@@ -6,7 +6,7 @@ I communicate with the SWI-Prolog pengines server (https://pengines.swi-prolog.o
 My main collaborators are ZincHTTP and STON. I use their methods for HTTP and JSON operations.
 "
 Class {
-	#name : #Pengine,
+	#name : #NondetPengine,
 	#superclass : #Object,
 	#instVars : [
 		'server',
@@ -36,7 +36,7 @@ Class {
 }
 
 { #category : #copying }
-Pengine class >> copyOptionsFrom: anOrigin [
+NondetPengine class >> copyOptionsFrom: anOrigin [
 	"comment stating purpose of class-side message"
 	"scope: class-variables  &  class-instance-variables"	
 	
@@ -45,7 +45,7 @@ Pengine class >> copyOptionsFrom: anOrigin [
 ]
 
 { #category : #'instance creation' }
-Pengine class >> new [
+NondetPengine class >> new [
 	"Instance creation respecting Seaside guidelines:
 		https://github.com/SeasideSt/Seaside/wiki/Object-Initialization"
 			
@@ -55,7 +55,7 @@ Pengine class >> new [
 ]
 
 { #category : #serialization }
-Pengine class >> stringifyData: someData withOptions: someOptions [
+NondetPengine class >> stringifyData: someData withOptions: someOptions [
 	
 	| msg |
 
@@ -93,7 +93,7 @@ Pengine class >> stringifyData: someData withOptions: someOptions [
 ]
 
 { #category : #API }
-Pengine >> abort [
+NondetPengine >> abort [
 	"Terminates the running query by force"
 			
 	| url response |
@@ -116,14 +116,14 @@ Pengine >> abort [
 ]
 
 { #category : #settings }
-Pengine >> application: anApplication [
+NondetPengine >> application: anApplication [
 	"The name of the application in which the pengine is to be run. Default is 'pengine_sandbox'."
 	
 	application := anApplication
 ]
 
 { #category : #settings }
-Pengine >> ask: anAsk [
+NondetPengine >> ask: anAsk [
 	"The query passed to the pengine immediately after its creation. By default no query is passed. 
 	Using this option will typically save one network roundtrip and thus using it with a deterministic query will result in just one roundtrip being made."
 	
@@ -131,7 +131,7 @@ Pengine >> ask: anAsk [
 ]
 
 { #category : #API }
-Pengine >> ask: aQuery withOptions: someOptions [
+NondetPengine >> ask: aQuery withOptions: someOptions [
 	"Runs query in search for the first solution.
 	Throws an error if the query is syntactically or semantically malformed or if running it could compromise the safety of the server.
 	someOptions is a dictionary contaning zero or more of 'template' or 'chunk' keys."
@@ -140,7 +140,7 @@ Pengine >> ask: aQuery withOptions: someOptions [
 ]
 
 { #category : #initialization }
-Pengine >> attach [
+NondetPengine >> attach [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	id ifNotNil: 		
@@ -151,7 +151,7 @@ Pengine >> attach [
 ]
 
 { #category : #initialization }
-Pengine >> attach: anId [
+NondetPengine >> attach: anId [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
@@ -164,14 +164,14 @@ Pengine >> attach: anId [
 ]
 
 { #category : #settings }
-Pengine >> chunk: aChunk [
+NondetPengine >> chunk: aChunk [
 	"The maximum number of solutions to retrieve in one chunk. 1 means no chunking (default)."
 
 	chunk := aChunk
 ]
 
 { #category : #initialization }
-Pengine >> create [
+NondetPengine >> create [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
@@ -182,7 +182,7 @@ Pengine >> create [
 ]
 
 { #category : #API }
-Pengine >> destroy [
+NondetPengine >> destroy [
 	"Destroys the pengine."
 
 	died
@@ -192,14 +192,14 @@ Pengine >> destroy [
 ]
 
 { #category : #settings }
-Pengine >> destroy: aBool [
+NondetPengine >> destroy: aBool [
 	"Determines if the pengine is to destroy itself after having run a query to completion. Defaults to true."
 
 	destroy := aBool
 ]
 
 { #category : #cleanup }
-Pengine >> destroyAll [
+NondetPengine >> destroyAll [
 	"destroys all pengine server instances associated with the running program"
 	"scope: Alive (so destroys server instance even if created by another client instance)"	
 
@@ -224,13 +224,13 @@ Pengine >> destroyAll [
 ]
 
 { #category : #settings }
-Pengine >> format: aFormat [
+NondetPengine >> format: aFormat [
 	"Determines the format of event responses. Format is a string, either json (default), or any string"
 	format := aFormat
 ]
 
 { #category : #settings }
-Pengine >> host: aHost [
+NondetPengine >> host: aHost [
 	"A string describing the host of the Pengines server on which to create the pengine.
 	Default is localhost."
 
@@ -238,7 +238,7 @@ Pengine >> host: aHost [
 ]
 
 { #category : #API }
-Pengine >> id [
+NondetPengine >> id [
 	"Evaluates to the id of the pengine (a string).
 	Note that the pengine must have been created before this field will have a non-null value, i.e. 'onCreate' must have been called."
 			
@@ -246,14 +246,14 @@ Pengine >> id [
 ]
 
 { #category : #settings }
-Pengine >> id: anId [
+NondetPengine >> id: anId [
 	"Assigns to the id of the pengine (a string)."
 	
 	id := anId
 ]
 
 { #category : #initialization }
-Pengine >> initialize [
+NondetPengine >> initialize [
 	
 	super initialize.
 	
@@ -273,21 +273,21 @@ Pengine >> initialize [
 ]
 
 { #category : #API }
-Pengine >> next [
+NondetPengine >> next [
 	"Triggers a search for the next solution"
 			
 	self send: 'next'
 ]
 
 { #category : #API }
-Pengine >> next: aChunkSize [
+NondetPengine >> next: aChunkSize [
 	"Triggers a search for the next solution, with a specified chunk size for the next solution"	
 			
 	self send: 'next(', aChunkSize, ')'
 ]
 
 { #category : #callbacks }
-Pengine >> onAbort: someData [
+NondetPengine >> onAbort: someData [
 	"Called when a running query has been successfully aborted.
 	'id' should point to the id of the pengine having been aborted."
 			
@@ -295,7 +295,7 @@ Pengine >> onAbort: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onCreate: someData [
+NondetPengine >> onCreate: someData [
 	"called when a pengine server instance has been created.
 	'id' should point to the id of the pengine."
 			
@@ -303,7 +303,7 @@ Pengine >> onCreate: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onData: someData [
+NondetPengine >> onData: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -311,7 +311,7 @@ Pengine >> onData: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onDebug: someData [
+NondetPengine >> onDebug: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -319,7 +319,7 @@ Pengine >> onDebug: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onDestroy: someData [
+NondetPengine >> onDestroy: someData [
 	"Called when the pengine has been successfully destroyed.
 	'id' should point to the id of the pengine having been destroyed."
 			
@@ -327,7 +327,7 @@ Pengine >> onDestroy: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onDetach: someData [
+NondetPengine >> onDetach: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -335,7 +335,7 @@ Pengine >> onDetach: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onError: someData [
+NondetPengine >> onError: someData [
 	"Called when the pengine throws an error.
 	'data' should evaluate to an error message in the form of a string.
 	'id' should point to the id of the pengine returning the error."
@@ -344,7 +344,7 @@ Pengine >> onError: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onFailure: someData [
+NondetPengine >> onFailure: someData [
 	"Called when the pengine fails to find a solution.
 	'id' should point to the id of the pengine reporting the failure."
 			
@@ -352,7 +352,7 @@ Pengine >> onFailure: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onOutput: someData [
+NondetPengine >> onOutput: someData [
 	"Called when the pengine has evaluated the built in pengine_output/1 predicate.
 	'data' should evaluate to a string or a dictionary.
 	'id' should point to the id of the pengine generating the output."
@@ -361,7 +361,7 @@ Pengine >> onOutput: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onPing: someData [
+NondetPengine >> onPing: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -369,7 +369,7 @@ Pengine >> onPing: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onPrompt: someData [
+NondetPengine >> onPrompt: someData [
 	"Called when the pengine evaluates the pengine_input/2 predicate.
 	'data' should evaluate to a prompt in the form of a string or a dictionary.
 	'id' should point to the id of the pengine producing the prompt."
@@ -378,7 +378,7 @@ Pengine >> onPrompt: someData [
 ]
 
 { #category : #'event processing' }
-Pengine >> onResponse: anEvent withValue: aResponse [
+NondetPengine >> onResponse: anEvent withValue: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"
 	
@@ -403,7 +403,7 @@ Pengine >> onResponse: anEvent withValue: aResponse [
 ]
 
 { #category : #callbacks }
-Pengine >> onStop: someData [
+NondetPengine >> onStop: someData [
 	"Called when a running query has been successfully stopped.
 	'id' should point to the id of the pengine having been stopped."
 			
@@ -411,7 +411,7 @@ Pengine >> onStop: someData [
 ]
 
 { #category : #callbacks }
-Pengine >> onSuccess: someData [
+NondetPengine >> onSuccess: someData [
 	"Called when the pengine responds with a successful answer to a query.
 	'data' should point to a list of objects each representing a solution to the query.
 	'more' should evaluate to a boolean indicating whether more solutions may exist.
@@ -421,7 +421,7 @@ Pengine >> onSuccess: someData [
 ]
 
 { #category : #private }
-Pengine >> optionsToList: someOptions [
+NondetPengine >> optionsToList: someOptions [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
@@ -435,7 +435,7 @@ Pengine >> optionsToList: someOptions [
 ]
 
 { #category : #settings }
-Pengine >> port: aPort [
+NondetPengine >> port: aPort [
 	"An Integer describing the port of the Pengines server on which to connect.
 	Default is 3030."
 
@@ -443,7 +443,7 @@ Pengine >> port: aPort [
 ]
 
 { #category : #'event processing' }
-Pengine >> processResponse: aResponse [
+NondetPengine >> processResponse: aResponse [
 	"comment stating purpose of instance-side message"
 
 	"scope: class-variables  &  instance-variables"
@@ -455,7 +455,7 @@ Pengine >> processResponse: aResponse [
 ]
 
 { #category : #'event processing' }
-Pengine >> pullResponse [
+NondetPengine >> pullResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -482,7 +482,7 @@ Pengine >> pullResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveAbort: aResponse [
+NondetPengine >> receiveAbort: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -491,7 +491,7 @@ Pengine >> receiveAbort: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveCreate: aResponse [
+NondetPengine >> receiveCreate: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
@@ -511,7 +511,7 @@ Pengine >> receiveCreate: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveDebug: aResponse [
+NondetPengine >> receiveDebug: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -520,7 +520,7 @@ Pengine >> receiveDebug: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveDestroy: aResponse [
+NondetPengine >> receiveDestroy: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 
@@ -531,7 +531,7 @@ Pengine >> receiveDestroy: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveDetached: aResponse [
+NondetPengine >> receiveDetached: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -541,7 +541,7 @@ Pengine >> receiveDetached: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveDied: aResponse [
+NondetPengine >> receiveDied: aResponse [
 	self unregisterPengine.
 	aborted
 		ifTrue: [ ^self ].
@@ -553,7 +553,7 @@ Pengine >> receiveDied: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveError: aResponse [
+NondetPengine >> receiveError: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -566,7 +566,7 @@ Pengine >> receiveError: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveFailure: aResponse [
+NondetPengine >> receiveFailure: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -574,7 +574,7 @@ Pengine >> receiveFailure: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveOutput: aResponse [
+NondetPengine >> receiveOutput: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -584,7 +584,7 @@ Pengine >> receiveOutput: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receivePing: aResponse [
+NondetPengine >> receivePing: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -592,7 +592,7 @@ Pengine >> receivePing: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receivePrompt: aResponse [
+NondetPengine >> receivePrompt: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -600,7 +600,7 @@ Pengine >> receivePrompt: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveStop: aResponse [
+NondetPengine >> receiveStop: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -608,7 +608,7 @@ Pengine >> receiveStop: aResponse [
 ]
 
 { #category : #receiving }
-Pengine >> receiveSuccess: aResponse [
+NondetPengine >> receiveSuccess: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 
@@ -619,7 +619,7 @@ Pengine >> receiveSuccess: aResponse [
 ]
 
 { #category : #API }
-Pengine >> respond: anInput [
+NondetPengine >> respond: anInput [
 	"Inputs a term in response to a prompt from an invocation of pengine_input/2 that is now waiting to receive data from the outside.
 	Throws an error if 'anInput' string cannot be parsed as a Prolog term or if 'anInput' dictionary cannot be serialised into JSON."
 			
@@ -627,7 +627,7 @@ Pengine >> respond: anInput [
 ]
 
 { #category : #sending }
-Pengine >> send: anEvent [
+NondetPengine >> send: anEvent [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
@@ -656,7 +656,7 @@ Pengine >> send: anEvent [
 ]
 
 { #category : #sending }
-Pengine >> sendCreate [
+NondetPengine >> sendCreate [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
@@ -694,7 +694,7 @@ Pengine >> sendCreate [
 ]
 
 { #category : #sending }
-Pengine >> sendDetach: someData [
+NondetPengine >> sendDetach: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
@@ -721,7 +721,7 @@ Pengine >> sendDetach: someData [
 ]
 
 { #category : #sending }
-Pengine >> sendPing: anInterval [
+NondetPengine >> sendPing: anInterval [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 	
@@ -754,7 +754,7 @@ Pengine >> sendPing: anInterval [
 ]
 
 { #category : #settings }
-Pengine >> server: aServer [
+NondetPengine >> server: aServer [
 	"A string pointing to the Pengines server on which to create the pengine.
 	Default is 'pengine'.
 	Unlike the existing JS API, setting the connection server with 'server:' only changes the server path, not the host or port.
@@ -764,28 +764,28 @@ Pengine >> server: aServer [
 ]
 
 { #category : #settings }
-Pengine >> src_text: aSrc [
+NondetPengine >> src_text: aSrc [
 	"Prolog source code to be injected in the pengine before attempting to solve any queries."
 	
 	src_text := aSrc
 ]
 
 { #category : #settings }
-Pengine >> src_url: aUrl [
+NondetPengine >> src_url: aUrl [
 	"A URL resolving to a file containing Prolog source code to be injected in the pengine before attempting to solve any queries."
 
 	src_url := aUrl
 ]
 
 { #category : #API }
-Pengine >> stop [
+NondetPengine >> stop [
 	"Stops searching for solutions. Terminates the running query gracefully"
 			
 	^self send: 'stop'
 ]
 
 { #category : #settings }
-Pengine >> template: aTemplate [
+NondetPengine >> template: aTemplate [
 	"A Prolog variable (or a term containing Prolog variables) shared with the query.
 	Meaningful only if the ask option is specified.
 	By default the value of this option is the variable bindings of the query passed in the ask option (a list of Name=Var pairs).
@@ -795,7 +795,7 @@ Pengine >> template: aTemplate [
 ]
 
 { #category : #private }
-Pengine >> unregisterPengine [
+NondetPengine >> unregisterPengine [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
