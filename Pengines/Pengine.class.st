@@ -448,12 +448,10 @@ Pengine >> processResponse: aResponse [
 
 	"scope: class-variables  &  instance-variables"
 
-	| obj |
-	
-	obj := aResponse isString
+	aResponse isString
 		ifTrue: [ STON fromString: aResponse ]
 		ifFalse: [ aResponse ].
-	^( self onResponse: ( obj at: #event ) withValue: obj ) value.
+	^( self onResponse: ( aResponse at: #event ) withValue: aResponse ) value.
 ]
 
 { #category : #'event processing' }
@@ -496,7 +494,8 @@ Pengine >> receiveAbort: aResponse [
 Pengine >> receiveCreate: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
-			
+	
+	detached := false.		
 	id := aResponse at: #id.
 	Alive add: id.
 	( Alive size > ( aResponse at: #slave_limit ) )
@@ -524,9 +523,10 @@ Pengine >> receiveDebug: aResponse [
 Pengine >> receiveDestroy: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
-			
+
 	self unregisterPengine.
-	( aResponse includes: #data ) ifTrue: [ self processResponse: ( aResponse at: #data ) ].
+	( aResponse includesKey: #data )
+		ifTrue: [ self processResponse: ( aResponse at: #data ) ].
 	^self onDestroy: aResponse
 ]
 
@@ -611,11 +611,11 @@ Pengine >> receiveStop: aResponse [
 Pengine >> receiveSuccess: aResponse [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
-			
+
 	( self onSuccess: aResponse )
 		ifTrue: [ ( aResponse at: #data ) do: [ :d | self onData: d ] ].
 	( aResponse at: #more)
-		ifNotNil: [ self next ] "is this correct?? (pengines.js l.459)"
+		ifTrue: [ self next ] "is this correct?? (pengines.js l.459)"
 ]
 
 { #category : #API }
@@ -688,7 +688,7 @@ Pengine >> sendCreate [
 																			contents: ( options reject: [ :v | v isNil ] );
 																			post.
 	response isSuccess
-							ifTrue: 		[ detached := false. ^self processResponse: response contents ]
+							ifTrue: 		[ ^self processResponse: response contents ]
 							ifFalse: 	[ ^self error: 'POST request with value ',
 														( options asString ), ' failed.' ]
 ]

@@ -14,7 +14,7 @@ ExamplePengine >> onCreate: response [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
-	Transcript cr; show: response; flush.
+	Transcript cr; show: 'CREATE: ', (response asString); flush.
 ]
 
 { #category : #callbacks }
@@ -22,7 +22,7 @@ ExamplePengine >> onData: someData [
 	"comment stating purpose of instance-side message"
 	"scope: class-variables  &  instance-variables"	
 			
-	Transcript cr; show: someData; flush.
+	Transcript cr; show: 'ON DATA: ', (someData asString); flush.
 ]
 
 { #category : #callbacks }
@@ -30,7 +30,7 @@ ExamplePengine >> onDestroy: someData [
 	"Called when the pengine has been successfully destroyed.
 	'id' should point to the id of the pengine having been destroyed."
 			
-	Transcript cr; show: someData; flush.
+	Transcript cr; show: 'DESTROY: ', (someData asString); flush.
 ]
 
 { #category : #callbacks }
